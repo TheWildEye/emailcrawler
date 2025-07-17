@@ -8,8 +8,11 @@ FOR KALI LINUX USERS: Bash
 git clone https://github.com/TheWildEye/emailcrawler.git
 
 cd emailcrawler
+
 python3 TigerCrawler.py
+
 or
+
 python3 DirectCrawler.py
 
 FOR WINDOWS USERS: Powershell/cmd
@@ -23,16 +26,21 @@ You need to install dependencies:
 3.lxml
 
 python -m pip install --upgrade pip
+
 python.exe -m pip install --upgrade pip (if it asks)
+
 python -m pip install requests beautifulsoup4 lxml
 
 ALL SET:
 
 python TigerCrawler.exe
+
 or
+
 python DirectCrawler.exe
 
 
 Tool Made by - Vyom Nagpal
+
 For any queries - Contact - 234tiger234@gmail.com
 
