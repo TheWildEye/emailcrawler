@@ -17,9 +17,6 @@ or
 python3 DirectCrawler.py
 
 
-
-
-
 FOR WINDOWS USERS: Powershell/cmd
 
 git clone https://github.com/TheWildEye/emailcrawler.git
