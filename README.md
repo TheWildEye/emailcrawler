@@ -5,3 +5,13 @@ On the other hand if you want emails directly you can use DirectCrawler.py which
 
 Tool Made by - Vyom Nagpal
 For any queries - Contact - 234tiger234@gmail.com
+
+
+FOR KALI LINUX USERS:
+
+git clone https://github.com/TheWildEye/emailcrawler.git
+
+cd emailcrawler
+python3 TigerCrawler.py
+or
+python3 DirectCrawler.py
