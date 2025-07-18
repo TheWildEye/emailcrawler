@@ -19,82 +19,117 @@ print(r"""
 print("\033[0m")
 # ─── END BANNER ───────────────────────────────────────────────────────────────
 
+import threading
+import queue
+import re
+import urllib.parse
 import requests
 from bs4 import BeautifulSoup
-from collections import deque
-import urllib.parse
-import re
 
-def crawl_emails(start_url, max_urls=100, timeout=5):
-    urls_to_visit = deque([start_url])
-    visited_urls = set()
-    found_emails = set()
-    count = 0
+# ─── CONFIG ──────────────────────────────────────────────────────────────────
+MAX_URLS    = 100
+MAX_THREADS = 10
+TIMEOUT     = 5
 
-    while urls_to_visit and count < max_urls:
-        count += 1
-        url = urls_to_visit.popleft()
-        visited_urls.add(url)
+# Email regex + extensions to skip
+EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}", re.I)
+BAD_EXTS = (".png", ".jpg", ".jpeg", ".webp")
 
-        print(f"[{count}] Processing: {url}")
+# Shared state
+to_visit = queue.Queue()
+visited  = set()
+queued   = set()
+emails   = set()
+count    = 0
+lock     = threading.Lock()
+session  = requests.Session()
+session.headers.update({"User-Agent": "TigerMailCrawler/1.0"})
+
+def enqueue(url):
+    """Add url to queue if not seen or already queued."""
+    with lock:
+        if url not in visited and url not in queued and len(visited) + to_visit.qsize() < MAX_URLS:
+            queued.add(url)
+            to_visit.put(url)
+
+def worker():
+    global count
+    while True:
+        url = to_visit.get()
+        if url is None:
+            to_visit.task_done()
+            return
+
+        with lock:
+            queued.remove(url)
+            visited.add(url)
+            count += 1
+            idx = count
+
+        print(f"[{idx}] Processing: {url}")
+
         try:
-            response = requests.get(url, timeout=timeout)
-            content = response.text
+            resp = session.get(url, timeout=TIMEOUT)
+            html = resp.text
 
-            # Extract emails
-            emails_on_page = set(re.findall(
-                r'[a-z0-9.\-+_]+@[a-z0-9.\-+_]+\.[a-z]+',
-                content, re.I
-            ))
-            found_emails.update(emails_on_page)
+            # extract & filter emails
+            found = set(EMAIL_RE.findall(html))
+            found = {e for e in found if not e.lower().endswith(BAD_EXTS)}
+            with lock:
+                emails.update(found)
 
-            # Parse links
-            soup = BeautifulSoup(content, "lxml")
+            # parse links
             parts = urllib.parse.urlsplit(url)
-            base_url = f"{parts.scheme}://{parts.netloc}"
-            path = url[:url.rfind("/") + 1] if "/" in parts.path else url
+            base  = f"{parts.scheme}://{parts.netloc}"
+            path  = url[:url.rfind("/")+1] if "/" in parts.path else url
 
-            for anchor in soup.find_all("a", href=True):
-                href = anchor["href"].strip()
-                if href.startswith(("mailto:", "tel:", "javascript:", "#", "ftp:")):
+            soup = BeautifulSoup(html, "lxml")
+            for a in soup.find_all("a", href=True):
+                href = a["href"].strip()
+                if href.startswith(("mailto:", "tel:", "#", "javascript:", "ftp:")):
                     continue
-
                 if href.startswith("/"):
-                    link = base_url + href
+                    link = base + href
                 elif href.startswith("http"):
                     link = href
                 else:
                     link = urllib.parse.urljoin(path, href)
+                enqueue(link)
 
-                if link not in visited_urls and link not in urls_to_visit:
-                    urls_to_visit.append(link)
+        except Exception:
+            pass
 
-        except (requests.exceptions.MissingSchema,
-                requests.exceptions.ConnectionError,
-                requests.exceptions.ReadTimeout,
-                requests.exceptions.InvalidURL) as e:
-            print(f"[-] Skipped ({e.__class__.__name__}): {url}")
-            continue
-        except Exception as e:
-            print(f"[-] Unexpected error [{e}]: {url}")
-            continue
-
-    return found_emails
+        to_visit.task_done()
 
 def main():
-    user_input = input("[+] Enter your target URL to scan: ").strip()
-    if not user_input.startswith(("http://", "https://")):
-        print("[-] Please include http:// or https:// in the URL.")
+    start = input("[+] Enter your target URL to scan: ").strip()
+    if not start.startswith(("http://","https://")):
+        print("[-] Include http:// or https://")
         return
 
-    emails = crawl_emails(user_input)
+    # seed
+    enqueue(start)
 
+    # launch threads
+    threads = []
+    for _ in range(MAX_THREADS):
+        t = threading.Thread(target=worker, daemon=True)
+        t.start()
+        threads.append(t)
+
+    # wait until done
+    to_visit.join()
+
+    # stop threads
+    for _ in threads:
+        to_visit.put(None)
+    for t in threads:
+        t.join()
+
+    # output
     print("\n[+] Emails found:")
-    if emails:
-        for mail in sorted(emails):
-            print(" -", mail)
-    else:
-        print("No emails found.")
+    for e in sorted(emails):
+        print(" -", e)
 
 if __name__ == "__main__":
     main()
