@@ -34,6 +34,11 @@ TIMEOUT     = 5
 session = requests.Session()
 session.headers.update({"User-Agent": "TigerMailCrawler/1.0"})
 
+# compile a stricter email regex
+EMAIL_REGEX = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}", re.I)
+# extensions to filter out
+BAD_EXTS = (".png", ".jpg", ".jpeg", ".webp")
+
 def fetch(url):
     try:
         resp = session.get(url, timeout=TIMEOUT)
@@ -51,7 +56,6 @@ def crawl_emails_parallel(start_url):
         futures = {pool.submit(fetch, to_crawl.pop(0)): True}
 
         while futures:
-            # wait for at least one to complete
             done, _ = wait(futures, return_when=FIRST_COMPLETED)
 
             for fut in done:
@@ -61,10 +65,10 @@ def crawl_emails_parallel(start_url):
                 if not html:
                     continue
 
-                # extract emails
-                emails |= set(re.findall(
-                    r'[a-z0-9.\-+_]+@[a-z0-9.\-+_]+\.[a-z]+', html, re.I
-                ))
+                # extract emails and filter out image-like
+                found = set(EMAIL_REGEX.findall(html))
+                found = {e for e in found if not e.lower().endswith(BAD_EXTS)}
+                emails |= found
 
                 # parse out links
                 parts = urllib.parse.urlsplit(url)
