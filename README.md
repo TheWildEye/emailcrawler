@@ -42,7 +42,7 @@ or
 python DirectCrawler.exe
 
 
-Tool Made by - Vyom Nagpal
+Tool Developed by - Vyom Nagpal
 
 For any queries - Contact - 234tiger234@gmail.com
 
