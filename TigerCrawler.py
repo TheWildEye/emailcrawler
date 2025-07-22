@@ -14,7 +14,7 @@ print(r"""
                      ░██                                                                                                                
                ░███████                                                                                                                 
 
-""")
+DEVELOPED BY - VYOM NAGPAL """)
 # reset color
 print("\033[0m")
 # ─── END BANNER ───────────────────────────────────────────────────────────────
